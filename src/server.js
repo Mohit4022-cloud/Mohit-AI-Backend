@@ -18,21 +18,45 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: [
+      process.env.FRONTEND_URL || 'http://localhost:3000',
+      'https://mohit-ai-frontend.onrender.com',
+      'http://localhost:3000'
+    ],
     credentials: true
   }
 });
 
 // Security middleware
-app.use(helmet());
-app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'https://mohit-ai-frontend.onrender.com',
-    'http://localhost:3000'
-  ],
-  credentials: true
+app.use(helmet({
+  crossOriginResourcePolicy: false,
 }));
+
+// CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'https://mohit-ai-frontend.onrender.com',
+      'http://localhost:3000',
+      'http://localhost:3001'
+    ];
+    
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all origins for now
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'X-JSON'],
+};
+
+app.use(cors(corsOptions));
 app.use(compression());
 
 // Body parsing middleware
