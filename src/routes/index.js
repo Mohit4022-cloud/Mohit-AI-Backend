@@ -5,6 +5,7 @@ import callRoutes from './call.routes.js';
 import webhookRoutes from './webhook.routes.js';
 import integrationRoutes from './integration.routes.js';
 import analyticsRoutes from './analytics.routes.js';
+import seedRoutes from './seed.routes.js';
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use('/calls', callRoutes);
 router.use('/webhooks', webhookRoutes);
 router.use('/integrations', integrationRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/seed', seedRoutes);
 
 export default router;
