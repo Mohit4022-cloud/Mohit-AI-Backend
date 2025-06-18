@@ -1,0 +1,294 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User and Authentication
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String?
+  password        String
+  role            UserRole  @default(SDR)
+  isActive        Boolean   @default(true)
+  emailVerified   Boolean   @default(false)
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  leads           Lead[]    @relation("AssignedLeads")
+  activities      Activity[]
+  calls           Call[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Organization {
+  id              String    @id @default(cuid())
+  name            String
+  domain          String?   @unique
+  plan            PlanType  @default(STARTER)
+  isActive        Boolean   @default(true)
+  
+  // Settings
+  responseTimeSeconds Int   @default(60)
+  enableVoiceCalls   Boolean @default(true)
+  enableSMS          Boolean @default(true)
+  enableEmail        Boolean @default(true)
+  enableLiveChat     Boolean @default(true)
+  
+  users           User[]
+  leads           Lead[]
+  integrations    Integration[]
+  webhooks        Webhook[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Lead Management
+model Lead {
+  id              String    @id @default(cuid())
+  
+  // Contact Information
+  firstName       String?
+  lastName        String?
+  email           String?
+  phone           String?
+  company         String?
+  jobTitle        String?
+  
+  // Lead Details
+  source          String
+  sourceDetails   Json?
+  status          LeadStatus @default(NEW)
+  score           Int       @default(0)
+  qualificationData Json?
+  
+  // Assignment
+  assignedToId    String?
+  assignedTo      User?     @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  activities      Activity[]
+  calls           Call[]
+  conversations   Conversation[]
+  
+  // Timestamps
+  firstContactAt  DateTime?
+  lastContactAt   DateTime?
+  qualifiedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@index([organizationId])
+}
+
+// Activity Tracking
+model Activity {
+  id              String    @id @default(cuid())
+  type            ActivityType
+  description     String?
+  data            Json?
+  
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([leadId])
+  @@index([type])
+}
+
+// Call Management
+model Call {
+  id              String    @id @default(cuid())
+  twilioCallSid   String    @unique
+  direction       CallDirection
+  status          CallStatus
+  duration        Int?      // in seconds
+  recordingUrl    String?
+  transcription   String?
+  
+  from            String
+  to              String
+  
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id])
+  
+  // AI Analysis
+  sentiment       String?
+  summary         String?
+  qualificationScore Int?
+  nextSteps       String[]
+  
+  startedAt       DateTime?
+  answeredAt      DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([twilioCallSid])
+  @@index([leadId])
+}
+
+// Conversation History
+model Conversation {
+  id              String    @id @default(cuid())
+  channel         Channel
+  messages        Message[]
+  
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  status          ConversationStatus @default(ACTIVE)
+  summary         String?
+  
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  updatedAt       DateTime  @updatedAt
+}
+
+model Message {
+  id              String    @id @default(cuid())
+  role            MessageRole
+  content         String
+  metadata        Json?
+  
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+}
+
+// CRM Integrations
+model Integration {
+  id              String    @id @default(cuid())
+  type            IntegrationType
+  isActive        Boolean   @default(true)
+  config          Json      // Encrypted credentials and settings
+  lastSyncAt      DateTime?
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Webhooks
+model Webhook {
+  id              String    @id @default(cuid())
+  url             String
+  events          String[]  // Array of event types
+  isActive        Boolean   @default(true)
+  secret          String    // For webhook signature validation
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  MANAGER
+  SDR
+  VIEWER
+}
+
+enum PlanType {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFYING
+  QUALIFIED
+  UNQUALIFIED
+  NURTURE
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum ActivityType {
+  INBOUND_RECEIVED
+  CALL_INITIATED
+  CALL_COMPLETED
+  SMS_SENT
+  EMAIL_SENT
+  CHAT_INITIATED
+  QUALIFICATION_COMPLETED
+  STATUS_CHANGED
+  NOTE_ADDED
+  TASK_CREATED
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallStatus {
+  QUEUED
+  RINGING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  BUSY
+  NO_ANSWER
+  CANCELED
+}
+
+enum Channel {
+  VOICE
+  SMS
+  EMAIL
+  CHAT
+  LINKEDIN
+}
+
+enum ConversationStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum MessageRole {
+  SYSTEM
+  ASSISTANT
+  USER
+}
+
+enum IntegrationType {
+  HUBSPOT
+  SALESFORCE
+  PIPEDRIVE
+  MONDAY
+  ZOHO
+  CUSTOM
+}
