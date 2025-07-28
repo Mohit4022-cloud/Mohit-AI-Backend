@@ -7,7 +7,6 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-316192?style=for-the-badge&logo=postgresql)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7+-DC382D?style=for-the-badge&logo=redis)](https://redis.io/)
 [![Prisma](https://img.shields.io/badge/Prisma-5.15.0-2D3748?style=for-the-badge&logo=prisma)](https://www.prisma.io/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 </div>
 
@@ -341,7 +340,7 @@ Provides Prometheus-compatible metrics.
 
 ## 📜 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is proprietary software. All rights reserved.
 
 ## 🙏 Acknowledgments
 

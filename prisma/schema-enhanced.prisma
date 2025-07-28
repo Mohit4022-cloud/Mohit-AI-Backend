@@ -1,0 +1,821 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User and Authentication
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String?
+  password        String
+  role            UserRole  @default(SDR)
+  isActive        Boolean   @default(true)
+  emailVerified   Boolean   @default(false)
+  avatar          String?
+  phoneNumber     String?
+  timezone        String    @default("UTC")
+  
+  // Notification preferences
+  notificationPreferences Json?
+  pushTokens      String[]
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  leads           Lead[]    @relation("AssignedLeads")
+  activities      Activity[]
+  calls           Call[]
+  notifications   Notification[]
+  apiKeys         ApiKey[]
+  sessions        Session[]
+  auditLogs       AuditLog[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Session {
+  id              String    @id @default(cuid())
+  token           String    @unique
+  userAgent       String?
+  ipAddress       String?
+  
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  expiresAt       DateTime
+  createdAt       DateTime  @default(now())
+  
+  @@index([token])
+  @@index([userId])
+}
+
+model ApiKey {
+  id              String    @id @default(cuid())
+  key             String    @unique
+  name            String
+  permissions     String[]
+  lastUsedAt      DateTime?
+  expiresAt       DateTime?
+  
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([key])
+}
+
+model Organization {
+  id              String    @id @default(cuid())
+  name            String
+  domain          String?   @unique
+  logo            String?
+  website         String?
+  industry        String?
+  size            String?
+  plan            PlanType  @default(STARTER)
+  isActive        Boolean   @default(true)
+  
+  // Settings
+  responseTimeSeconds Int   @default(60)
+  enableVoiceCalls   Boolean @default(true)
+  enableSMS          Boolean @default(true)
+  enableEmail        Boolean @default(true)
+  enableLiveChat     Boolean @default(true)
+  enableAI           Boolean @default(true)
+  
+  // Limits
+  monthlyLeadLimit   Int?
+  monthlyCallLimit   Int?
+  monthlySMSLimit    Int?
+  monthlyEmailLimit  Int?
+  
+  // Billing
+  stripeCustomerId   String?   @unique
+  stripeSubscriptionId String? @unique
+  billingEmail       String?
+  billingCycle       BillingCycle @default(MONTHLY)
+  
+  users           User[]
+  leads           Lead[]
+  integrations    Integration[]
+  webhooks        Webhook[]
+  campaigns       Campaign[]
+  templates       Template[]
+  workflows       Workflow[]
+  tags            Tag[]
+  customFields    CustomField[]
+  billingHistory  BillingHistory[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Lead Management
+model Lead {
+  id              String    @id @default(cuid())
+  
+  // Contact Information
+  firstName       String?
+  lastName        String?
+  email           String?
+  phone           String?
+  company         String?
+  jobTitle        String?
+  linkedinUrl     String?
+  website         String?
+  
+  // Lead Details
+  source          String
+  sourceDetails   Json?
+  status          LeadStatus @default(NEW)
+  score           Int       @default(0)
+  qualificationData Json?
+  priority        Priority  @default(MEDIUM)
+  
+  // Custom fields
+  customData      Json?
+  
+  // Assignment
+  assignedToId    String?
+  assignedTo      User?     @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id])
+  
+  activities      Activity[]
+  calls           Call[]
+  conversations   Conversation[]
+  tasks           Task[]
+  notes           Note[]
+  leadTags        LeadTag[]
+  leadMetrics     LeadMetric[]
+  
+  // Timestamps
+  firstContactAt  DateTime?
+  lastContactAt   DateTime?
+  qualifiedAt     DateTime?
+  convertedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@index([organizationId])
+  @@index([assignedToId])
+}
+
+// Campaign Management
+model Campaign {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  type            CampaignType
+  status          CampaignStatus @default(DRAFT)
+  
+  // Settings
+  targetAudience  Json?
+  budget          Decimal?
+  startDate       DateTime?
+  endDate         DateTime?
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  leads           Lead[]
+  workflows       Workflow[]
+  metrics         CampaignMetric[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Workflow Automation
+model Workflow {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  trigger         WorkflowTrigger
+  status          WorkflowStatus @default(ACTIVE)
+  
+  conditions      Json      // Workflow conditions
+  actions         Json      // Workflow actions
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id])
+  
+  executions      WorkflowExecution[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model WorkflowExecution {
+  id              String    @id @default(cuid())
+  status          ExecutionStatus
+  input           Json
+  output          Json?
+  error           String?
+  
+  workflowId      String
+  workflow        Workflow  @relation(fields: [workflowId], references: [id])
+  
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+}
+
+// Templates
+model Template {
+  id              String    @id @default(cuid())
+  name            String
+  type            TemplateType
+  subject         String?   // For emails
+  content         String
+  variables       String[]  // Template variables
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Task Management
+model Task {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  type            TaskType
+  priority        Priority  @default(MEDIUM)
+  status          TaskStatus @default(PENDING)
+  dueDate         DateTime?
+  
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Notes
+model Note {
+  id              String    @id @default(cuid())
+  content         String
+  
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Tags
+model Tag {
+  id              String    @id @default(cuid())
+  name            String
+  color           String?
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  leadTags        LeadTag[]
+  
+  createdAt       DateTime  @default(now())
+}
+
+model LeadTag {
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  tagId           String
+  tag             Tag       @relation(fields: [tagId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  
+  @@id([leadId, tagId])
+}
+
+// Custom Fields
+model CustomField {
+  id              String    @id @default(cuid())
+  name            String
+  type            FieldType
+  options         String[]  // For select/multiselect
+  required        Boolean   @default(false)
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Activity Tracking
+model Activity {
+  id              String    @id @default(cuid())
+  type            ActivityType
+  description     String?
+  data            Json?
+  
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([leadId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// Call Management
+model Call {
+  id              String    @id @default(cuid())
+  twilioCallSid   String    @unique
+  direction       CallDirection
+  status          CallStatus
+  duration        Int?      // in seconds
+  recordingUrl    String?
+  transcription   String?
+  
+  from            String
+  to              String
+  
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id])
+  
+  // AI Analysis
+  sentiment       String?
+  summary         String?
+  qualificationScore Int?
+  nextSteps       String[]
+  keyPoints       String[]
+  
+  // Call metrics
+  talkTime        Int?      // seconds
+  holdTime        Int?      // seconds
+  waitTime        Int?      // seconds
+  
+  startedAt       DateTime?
+  answeredAt      DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([twilioCallSid])
+  @@index([leadId])
+  @@index([status])
+}
+
+// Conversation History
+model Conversation {
+  id              String    @id @default(cuid())
+  channel         Channel
+  messages        Message[]
+  
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  status          ConversationStatus @default(ACTIVE)
+  summary         String?
+  sentiment       String?
+  
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  updatedAt       DateTime  @updatedAt
+}
+
+model Message {
+  id              String    @id @default(cuid())
+  role            MessageRole
+  content         String
+  metadata        Json?
+  
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+}
+
+// CRM Integrations
+model Integration {
+  id              String    @id @default(cuid())
+  type            IntegrationType
+  isActive        Boolean   @default(true)
+  config          Json      // Encrypted credentials and settings
+  lastSyncAt      DateTime?
+  lastError       String?
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  syncLogs        SyncLog[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model SyncLog {
+  id              String    @id @default(cuid())
+  status          SyncStatus
+  recordsProcessed Int      @default(0)
+  recordsFailed   Int       @default(0)
+  error           String?
+  
+  integrationId   String
+  integration     Integration @relation(fields: [integrationId], references: [id])
+  
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+}
+
+// Webhooks
+model Webhook {
+  id              String    @id @default(cuid())
+  url             String
+  events          String[]  // Array of event types
+  isActive        Boolean   @default(true)
+  secret          String    // For webhook signature validation
+  headers         Json?     // Custom headers
+  retryPolicy     Json?     // Retry configuration
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  deliveries      WebhookDelivery[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model WebhookDelivery {
+  id              String    @id @default(cuid())
+  event           String
+  payload         Json
+  response        Json?
+  statusCode      Int?
+  attempts        Int       @default(1)
+  success         Boolean   @default(false)
+  
+  webhookId       String
+  webhook         Webhook   @relation(fields: [webhookId], references: [id])
+  
+  deliveredAt     DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+// Notifications
+model Notification {
+  id              String    @id @default(cuid())
+  type            NotificationType
+  title           String
+  message         String
+  data            Json?
+  priority        Priority  @default(NORMAL)
+  read            Boolean   @default(false)
+  
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  
+  readAt          DateTime?
+  createdAt       DateTime  @default(now())
+  
+  @@index([userId, read])
+}
+
+// Analytics & Metrics
+model LeadMetric {
+  id              String    @id @default(cuid())
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  metricType      String
+  value           Float
+  timestamp       DateTime  @default(now())
+  
+  @@index([leadId, metricType])
+  @@index([timestamp])
+}
+
+model CampaignMetric {
+  id              String    @id @default(cuid())
+  campaignId      String
+  campaign        Campaign  @relation(fields: [campaignId], references: [id])
+  
+  date            DateTime
+  impressions     Int       @default(0)
+  clicks          Int       @default(0)
+  conversions     Int       @default(0)
+  cost            Decimal?
+  
+  @@unique([campaignId, date])
+  @@index([date])
+}
+
+model ApiMetric {
+  id              String    @id @default(cuid())
+  endpoint        String
+  method          String
+  statusCode      Int
+  responseTime    Int       // milliseconds
+  userId          String?
+  
+  timestamp       DateTime  @default(now())
+  
+  @@index([endpoint, timestamp])
+  @@index([userId])
+}
+
+// Billing
+model BillingHistory {
+  id              String    @id @default(cuid())
+  amount          Decimal
+  currency        String    @default("USD")
+  status          PaymentStatus
+  invoiceId       String?
+  invoiceUrl      String?
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+}
+
+// Audit Logs
+model AuditLog {
+  id              String    @id @default(cuid())
+  action          String
+  entityType      String
+  entityId        String
+  oldData         Json?
+  newData         Json?
+  ipAddress       String?
+  userAgent       String?
+  
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Enums
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  SDR
+  VIEWER
+}
+
+enum PlanType {
+  TRIAL
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+  CUSTOM
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFYING
+  QUALIFIED
+  UNQUALIFIED
+  NURTURE
+  MEETING_SCHEDULED
+  PROPOSAL_SENT
+  NEGOTIATING
+  CLOSED_WON
+  CLOSED_LOST
+  RECYCLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CampaignType {
+  EMAIL
+  SMS
+  VOICE
+  MULTI_CHANNEL
+  NURTURE
+  ONBOARDING
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum WorkflowTrigger {
+  LEAD_CREATED
+  LEAD_UPDATED
+  STATUS_CHANGED
+  TAG_ADDED
+  SCORE_THRESHOLD
+  TIME_BASED
+  WEBHOOK
+  MANUAL
+}
+
+enum WorkflowStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TemplateType {
+  EMAIL
+  SMS
+  VOICEMAIL
+  CHAT
+  SCRIPT
+}
+
+enum TaskType {
+  FOLLOW_UP
+  MEETING
+  CALL
+  EMAIL
+  RESEARCH
+  CUSTOM
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum FieldType {
+  TEXT
+  NUMBER
+  DATE
+  BOOLEAN
+  SELECT
+  MULTISELECT
+  EMAIL
+  PHONE
+  URL
+}
+
+enum ActivityType {
+  INBOUND_RECEIVED
+  CALL_INITIATED
+  CALL_COMPLETED
+  SMS_SENT
+  SMS_RECEIVED
+  EMAIL_SENT
+  EMAIL_OPENED
+  EMAIL_CLICKED
+  CHAT_INITIATED
+  CHAT_MESSAGE
+  QUALIFICATION_COMPLETED
+  STATUS_CHANGED
+  TAG_ADDED
+  TAG_REMOVED
+  NOTE_ADDED
+  TASK_CREATED
+  TASK_COMPLETED
+  MEETING_SCHEDULED
+  MEETING_COMPLETED
+  DOCUMENT_SHARED
+  LINK_CLICKED
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallStatus {
+  QUEUED
+  RINGING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  BUSY
+  NO_ANSWER
+  CANCELED
+  VOICEMAIL
+}
+
+enum Channel {
+  VOICE
+  SMS
+  EMAIL
+  CHAT
+  WHATSAPP
+  LINKEDIN
+  FACEBOOK
+  TWITTER
+  INSTAGRAM
+}
+
+enum ConversationStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum MessageRole {
+  SYSTEM
+  ASSISTANT
+  USER
+  AGENT
+}
+
+enum IntegrationType {
+  HUBSPOT
+  SALESFORCE
+  PIPEDRIVE
+  MONDAY
+  ZOHO
+  INTERCOM
+  SLACK
+  TEAMS
+  ZAPIER
+  CUSTOM
+}
+
+enum SyncStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+enum NotificationType {
+  LEAD_ASSIGNED
+  LEAD_UPDATE
+  TASK_DUE
+  TASK_OVERDUE
+  CALL_MISSED
+  MESSAGE_RECEIVED
+  SYSTEM_ALERT
+  QUOTA_WARNING
+  INTEGRATION_ERROR
+  PERFORMANCE_ALERT
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
