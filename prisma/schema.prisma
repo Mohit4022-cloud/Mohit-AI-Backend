@@ -45,10 +45,22 @@ model Organization {
   enableEmail        Boolean @default(true)
   enableLiveChat     Boolean @default(true)
   
+  // AI Settings
+  enableAICalls     Boolean   @default(true)
+  enableAITranscription Boolean @default(true)
+  enableAIInsights  Boolean   @default(true)
+  maxConcurrentAICalls Int @default(3)
+  
   users           User[]
   leads           Lead[]
   integrations    Integration[]
   webhooks        Webhook[]
+  
+  // AI Relations
+  aiCallQueue     AICallQueue[]
+  contentCards    ContentCard[]
+  aiSettings      AISettings?
+  progressiveSettings ProgressiveSettings?
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -83,6 +95,9 @@ model Lead {
   activities      Activity[]
   calls           Call[]
   conversations   Conversation[]
+  
+  // AI Relations
+  aiCallQueue     AICallQueue[]
   
   // Timestamps
   firstContactAt  DateTime?
@@ -119,7 +134,7 @@ model Activity {
 // Call Management
 model Call {
   id              String    @id @default(cuid())
-  twilioCallSid   String    @unique
+  twilioCallSid   String?   @unique
   direction       CallDirection
   status          CallStatus
   duration        Int?      // in seconds
@@ -135,11 +150,29 @@ model Call {
   userId          String?
   user            User?     @relation(fields: [userId], references: [id])
   
+  // AI Call Features
+  mode            CallMode  @default(AI)
+  agentStatus     AgentStatus @default(IDLE)
+  aiAgentId       String?
+  aiSettings      Json?
+  
   // AI Analysis
-  sentiment       String?
+  sentiment       Int?      // 0-100 sentiment score
   summary         String?
   qualificationScore Int?
   nextSteps       String[]
+  keywords        String[]
+  
+  // Call Queue
+  queuePriority   QueuePriority @default(MEDIUM)
+  queuePosition   Int?
+  scheduledAt     DateTime?
+  
+  // Advanced Features
+  isAiEnabled     Boolean   @default(true)
+  isTranscribing  Boolean   @default(true)
+  isRecording     Boolean   @default(true)
+  transcriptMode  TranscriptMode @default(SIDEBAR)
   
   startedAt       DateTime?
   answeredAt      DateTime?
@@ -147,8 +180,17 @@ model Call {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   
+  // Relations
+  transcriptEntries TranscriptEntry[]
+  aiInsights      AIInsight[]
+  contentCards    ContentCard[]
+  aiCallMetrics   AICallMetrics?
+  
   @@index([twilioCallSid])
   @@index([leadId])
+  @@index([status])
+  @@index([mode])
+  @@index([queuePriority])
 }
 
 // Conversation History
@@ -291,4 +333,290 @@ enum IntegrationType {
   MONDAY
   ZOHO
   CUSTOM
+}
+
+// AI Call Models
+
+// AI Call Queue
+model AICallQueue {
+  id              String    @id @default(cuid())
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  priority        QueuePriority @default(MEDIUM)
+  status          QueueStatus @default(PENDING)
+  scheduledAt     DateTime?
+  attempts        Int       @default(0)
+  maxAttempts     Int       @default(3)
+  lastAttemptAt   DateTime?
+  
+  settings        Json?
+  metadata        Json?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([priority])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+// Transcript Entry
+model TranscriptEntry {
+  id              String    @id @default(cuid())
+  callId          String
+  call            Call      @relation(fields: [callId], references: [id])
+  
+  speaker         TranscriptSpeaker
+  text            String
+  timestamp       DateTime
+  duration        Int?      // in milliseconds
+  
+  // AI Analysis
+  sentiment       Int?      // 0-100
+  confidence      Float?    // 0-1
+  keywords        String[]
+  
+  metadata        Json?
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([callId])
+  @@index([speaker])
+  @@index([timestamp])
+}
+
+// AI Insight
+model AIInsight {
+  id              String    @id @default(cuid())
+  callId          String
+  call            Call      @relation(fields: [callId], references: [id])
+  
+  type            InsightType
+  title           String
+  content         String
+  confidence      Int       // 0-100
+  priority        InsightPriority @default(MEDIUM)
+  
+  // Context
+  keywords        String[]
+  context         Json?
+  
+  // Status
+  status          InsightStatus @default(ACTIVE)
+  dismissedAt     DateTime?
+  dismissedBy     String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([callId])
+  @@index([type])
+  @@index([priority])
+  @@index([status])
+}
+
+// Content Card
+model ContentCard {
+  id              String    @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  callId          String?
+  call            Call?     @relation(fields: [callId], references: [id])
+  
+  type            ContentCardType
+  title           String
+  content         String
+  priority        ContentCardPriority @default(MEDIUM)
+  
+  // Display settings
+  isActive        Boolean   @default(true)
+  isDismissible   Boolean   @default(true)
+  displayDuration Int?      // in seconds
+  
+  // Actions
+  actionButtons   Json?
+  metadata        Json?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([organizationId])
+  @@index([callId])
+  @@index([type])
+  @@index([priority])
+  @@index([isActive])
+}
+
+// AI Call Metrics
+model AICallMetrics {
+  id              String    @id @default(cuid())
+  callId          String    @unique
+  call            Call      @relation(fields: [callId], references: [id])
+  
+  // Performance metrics
+  responseTime    Int?      // in seconds
+  firstResponseTime Int?    // in seconds
+  avgResponseTime Float?    // in seconds
+  
+  // AI metrics
+  aiSpeakingTime  Int?      // in seconds
+  humanSpeakingTime Int?    // in seconds
+  silenceTime     Int?      // in seconds
+  interruptions   Int       @default(0)
+  
+  // Quality metrics
+  sentimentScore  Float?    // 0-1
+  engagementScore Float?    // 0-1
+  clarityScore    Float?    // 0-1
+  
+  // Topic analysis
+  topics          Json?
+  keywords        String[]
+  
+  // Technical metrics
+  connectionQuality Int?    // 0-100
+  transcriptionAccuracy Float? // 0-1
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// AI Settings
+model AISettings {
+  id              String    @id @default(cuid())
+  organizationId  String    @unique
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  // Voice settings
+  voiceId         String?
+  modelId         String?
+  language        String    @default("en")
+  voiceSettings   Json?
+  
+  // AI behavior
+  responseSpeed   Int       @default(5) // 1-10
+  formalityLevel  Int       @default(5) // 1-10
+  empathyLevel    Int       @default(5) // 1-10
+  technicalDetail Int       @default(5) // 1-10
+  
+  // Features
+  enableRecording Boolean   @default(true)
+  enableTranscription Boolean @default(true)
+  enableInsights  Boolean   @default(true)
+  enableRealTimeAnalysis Boolean @default(true)
+  
+  // Privacy & Compliance
+  recordAnnouncement Boolean @default(true)
+  aiDisclosure    Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Progressive Settings
+model ProgressiveSettings {
+  id              String    @id @default(cuid())
+  organizationId  String    @unique
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  level           ProgressiveLevel @default(OVERVIEW)
+  features        Json?
+  preferences     Json?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// New Enums for AI Features
+
+enum CallMode {
+  AI
+  HUMAN
+  HYBRID
+}
+
+enum AgentStatus {
+  LISTENING
+  PROCESSING
+  SPEAKING
+  IDLE
+}
+
+enum QueuePriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum QueueStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TranscriptSpeaker {
+  AI
+  LEAD
+  AGENT
+  SYSTEM
+}
+
+enum InsightType {
+  SENTIMENT
+  TOPIC
+  COMPETITOR
+  PRICING
+  ACTION
+  OBJECTION
+  QUESTION
+}
+
+enum InsightPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum InsightStatus {
+  ACTIVE
+  DISMISSED
+  RESOLVED
+}
+
+enum ContentCardType {
+  PRICING
+  COMPETITOR
+  OBJECTION
+  INSIGHT
+  TALKING_POINT
+  FAQ
+  FEATURE
+}
+
+enum ContentCardPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum TranscriptMode {
+  SIDEBAR
+  SUBTITLE
+  DISABLED
+}
+
+enum ProgressiveLevel {
+  OVERVIEW
+  BASIC
+  DETAILED
+  ADVANCED
 }

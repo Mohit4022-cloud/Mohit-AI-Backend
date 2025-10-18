@@ -3,6 +3,10 @@ import { authenticateSocket } from '../../middleware/auth.js';
 import callHandler from './handlers/callHandler.js';
 import chatHandler from './handlers/chatHandler.js';
 import notificationHandler from './handlers/notificationHandler.js';
+import aiCallHandler from './handlers/aiCallHandler.js';
+import aiTranscriptionHandler from './handlers/aiTranscriptionHandler.js';
+import aiInsightsHandler from './handlers/aiInsightsHandler.js';
+import aiQueueHandler from './handlers/aiQueueHandler.js';
 
 export function initializeWebSocketHandlers(io) {
   // Authentication middleware
@@ -17,12 +21,18 @@ export function initializeWebSocketHandlers(io) {
     // Join organization room if applicable
     if (socket.organizationId) {
       socket.join(`org:${socket.organizationId}`);
+      // Join AI calls room for real-time updates
+      socket.join(`ai_calls_${socket.organizationId}`);
     }
 
     // Register handlers
     callHandler(socket, io);
     chatHandler(socket, io);
     notificationHandler(socket, io);
+    aiCallHandler(socket, io);
+    aiTranscriptionHandler(socket, io);
+    aiInsightsHandler(socket, io);
+    aiQueueHandler(socket, io);
 
     // Handle disconnection
     socket.on('disconnect', () => {
@@ -59,5 +69,19 @@ export function broadcastToAll(event, data) {
   const io = global.io;
   if (io) {
     io.emit(event, data);
+  }
+}
+
+export function emitToAICalls(orgId, event, data) {
+  const io = global.io;
+  if (io) {
+    io.to(`ai_calls_${orgId}`).emit(event, data);
+  }
+}
+
+export function emitToCall(callId, event, data) {
+  const io = global.io;
+  if (io) {
+    io.to(`call_${callId}`).emit(event, data);
   }
 }

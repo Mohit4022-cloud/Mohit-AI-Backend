@@ -2,6 +2,7 @@ import { Router } from 'express';
 import authRoutes from './auth.routes.js';
 import leadRoutes from './lead.routes.js';
 import callRoutes from './call.routes.js';
+import aiCallsRoutes from './ai-calls.routes.js';
 import webhookRoutes from './webhook.routes.js';
 import integrationRoutes from './integration.routes.js';
 import analyticsRoutes from './analytics.routes.js';
@@ -23,6 +24,7 @@ router.get('/', (req, res) => {
 router.use('/auth', authRoutes);
 router.use('/leads', leadRoutes);
 router.use('/calls', callRoutes);
+router.use('/ai-calls', aiCallsRoutes);
 router.use('/webhooks', webhookRoutes);
 router.use('/integrations', integrationRoutes);
 router.use('/analytics', analyticsRoutes);
