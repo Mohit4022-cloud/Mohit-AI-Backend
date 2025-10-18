@@ -1,9 +1,13 @@
 {
   "name": "mohit-ai-backend",
   "version": "1.0.0",
-  "description": "Mohit AI Inbound SDR Backend - Never miss another inbound lead",
+  "description": "AI-Powered Inbound SDR Platform - Portfolio demonstration of full-stack AI product engineering (PM + AI Engineer + Backend Engineer)",
   "type": "module",
   "main": "src/server.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mohit4022-cloud/Mohit-AI-Backend.git"
+  },
   "scripts": {
     "start": "npm run prisma:migrate && node src/server.js",
     "dev": "nodemon src/server.js",
@@ -54,13 +58,30 @@
     "node": ">=18.0.0"
   },
   "keywords": [
-    "inbound-sdr",
-    "ai",
-    "sales",
+    "ai-sdr",
+    "inbound-sales",
+    "ai-voice",
     "lead-qualification",
+    "openai-gpt4",
+    "elevenlabs",
     "twilio",
-    "elevenlabs"
+    "websocket",
+    "real-time-ai",
+    "sales-automation",
+    "multi-provider-ai",
+    "product-management",
+    "backend-engineering",
+    "ai-engineering",
+    "portfolio-project"
   ],
-  "author": "Mohit AI",
-  "license": "UNLICENSED"
+  "author": {
+    "name": "Mohit Tiwari",
+    "email": "mohit@mohit-ai.com",
+    "url": "https://github.com/Mohit4022-cloud"
+  },
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/Mohit4022-cloud/Mohit-AI-Backend#readme",
+  "bugs": {
+    "url": "https://github.com/Mohit4022-cloud/Mohit-AI-Backend/issues"
+  }
 }
