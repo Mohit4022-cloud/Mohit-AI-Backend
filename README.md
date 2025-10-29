@@ -1,4 +1,4 @@
-# Mohit AI - Inbound SDR Platform
+# Mohit AI - Inbound SDR Platform / www.mohit-ai.com
 ## Full-Stack AI Product Engineering
 
 <div align="center">
