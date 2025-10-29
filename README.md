@@ -1,5 +1,5 @@
 # Mohit AI - Inbound SDR Platform
-## 🎯 Portfolio Project: Full-Stack AI Product Engineering
+## Full-Stack AI Product Engineering
 
 <div align="center">
 
